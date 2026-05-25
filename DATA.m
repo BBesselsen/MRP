@@ -156,7 +156,7 @@ for PP = 1:nparticipants
         end
 
 
-        
+
         condtype = lower(string(DAT(PP).config.Condition_type));
         isBaseline = condtype == "baseline";
         DAT(PP).base = DAT(PP).pow_W(find(isBaseline, 1));
@@ -188,6 +188,16 @@ for PP = 1:nparticipants
 
 
     end
+    % Optimal force (force at lowest measured CoT)
+    isForce_opt = ~isnan(DAT(PP).config.Force_level_pct);
+    cot_opt     = DAT(PP).CoT(isForce_opt);
+    force_opt   = DAT(PP).force_m(isForce_opt);
+    if any(~isnan(cot_opt))
+        [~, idx_opt]      = min(cot_opt);
+        DAT(PP).opt_force = force_opt(idx_opt);
+    else
+        DAT(PP).opt_force = NaN;
+    end
 end
 
 %% figure
@@ -211,7 +221,7 @@ for PP = 1:nparticipants
     [x_force_sorted, idx_sort] = sort(x_force);
     y_force_sorted = y_force(idx_sort);
 
-    plot(x_force_sorted, y_force_sorted, 'o--', 'LineWidth', 1.2)
+    plot(x_force_sorted, y_force_sorted, 'o', 'LineWidth', 1.2)
 
     % Self-selected trials
     condtype = string(DAT(PP).config.Condition_type);
@@ -257,7 +267,7 @@ for PP = 1:nparticipants
     self_idx_all{PP} = find(contains(lower(condtype), 'self'));
 end
 
-% Filter 
+% Filter
 cutoff_hz    = 0.01;
 filter_order = 4;
 [b, a] = butter(filter_order, cutoff_hz / (fs_force / 2), 'low');
@@ -269,7 +279,7 @@ for fase = 1:2
     sgtitle(sprintf('Self-selection phase %d - raw and filtered force', fase));
 
     for PP = 1:nparticipants
-        subplot(2, 3, PP);  
+        subplot(2, 3, PP);
         hold on;
 
         idx_self = self_idx_all{PP};
@@ -292,24 +302,27 @@ for fase = 1:2
 
         plot(t, force_raw,  'Color', [0.7 0.7 0.7], 'LineWidth', 0.7 , 'DisplayName', 'Raw force [N/kg]');
         plot(t, force_filt, 'Color', colors(PP,:), 'LineWidth', 2, 'DisplayName','Filtered force [N/kg]');
-      
 
-        % Mean force in analysiswindow 
+
+        % Mean force in analysiswindow
         yline(DAT(PP).force_m(trial_nr), ':', ...
             'Color', colors(PP,:), 'LineWidth', 1.8, ...
             'DisplayName', sprintf('Mean force: %.2f N/kg', DAT(PP).force_m(trial_nr)));
+        %Opt force
+        yline(DAT(PP).opt_force, '--k', 'LineWidth', 1.5, ...
+            'DisplayName', sprintf('Opt. force (min CoT): %.2f N/kg', DAT(PP).opt_force));
 
         title(sprintf('Participant %d', PP));
         xlabel('Time [s]');
         ylabel('Force [N/kg]');
-        legend(Location="best");
+        legend(Location="north");
         ylim([-0.5 1.75]);
         grid on;
         hold off;
     end
 end
 
-%means pre en post in scatterplot
+%% means pre en post in scatterplot
 
 figure();
 hold on;
@@ -327,11 +340,11 @@ for PP = 1:nparticipants
     force_s1_all(PP) = DAT(PP).force_m(idx_self(1));
     force_s2_all(PP) = DAT(PP).force_m(idx_self(2));
 
-    
+
     scatter(1, force_s1_all(PP), 80, colors(PP,:), 'filled', 'HandleVisibility', 'off');
     scatter(2, force_s2_all(PP), 80, colors(PP,:), 'filled', 'HandleVisibility', 'off');
 
-    
+
     plot([1 2], [force_s1_all(PP) force_s2_all(PP)], '--', ...
         'Color', colors(PP,:), 'LineWidth', 1.2, ...
         'DisplayName', sprintf('PP%d', PP));
@@ -369,7 +382,7 @@ diff_s2 = nan(nparticipants, 1);
 for PP = 1:nparticipants
     condtype = string(DAT(PP).config.Condition_type);
 
-    % Forced trials 
+    % Forced trials
     isForce = ~isnan(DAT(PP).config.Force_level_pct);
     if PP == 4
         isForce = isForce & (DAT(PP).config.Force_level_pct ~= 40);
@@ -428,7 +441,7 @@ hold off;
 %% Steady-state quality check: CV
 
 
-CV_threshold     = 25; 
+CV_threshold     = 25;
 exclude_baseline = true;
 
 fprintf('\n===== STEADY-STATE QUALITY CHECK =====\n');
@@ -536,7 +549,7 @@ end
 %% Comfort vs force per subject
 for PP = 1:nparticipants
 
-    
+
     if ~isfield(DAT(PP), 'config') || ~istable(DAT(PP).config)
         fprintf('Subject %d: no valid config table.\n', PP);
         continue
@@ -555,18 +568,18 @@ for PP = 1:nparticipants
     comfort = DAT(PP).config.Comfort;
     force   = DAT(PP).force_m(:);
 
-    
+
     n = min([length(comfort), length(force), height(DAT(PP).config)]);
     comfort = comfort(1:n);
     force   = force(1:n);
 
-    
+
     % Forced trials fit
-    
+
     isForced = ~isnan(DAT(PP).config.Force_level_pct(1:n));
     valid_forced = isForced & ~isnan(comfort) & ~isnan(force);
 
-    
+
     valid_all = ~isnan(comfort) & ~isnan(force);
 
     if sum(valid_forced) < 3
@@ -574,7 +587,7 @@ for PP = 1:nparticipants
         continue
     end
 
-    
+
     figure(100 + PP); clf
     hold on;
 
@@ -670,6 +683,7 @@ for sp = 1:2
     x_min = x_force_sorted(idx_min);
     plot(x_min, y_min, 'rx', 'MarkerSize', 10, 'LineWidth', 1.5);
 
+
     xlabel('Mean force [N/kg]')
     ylabel('Cost of Transport [J kg^{-1} m^{-1}]')
     title(sprintf('Subject %d', PP))
@@ -744,6 +758,8 @@ for sp = 1:2
     plot(x_self, y_self, 'ro', 'MarkerSize', 8, 'LineWidth', 1.5, ...
         'DisplayName', 'Self-selected (S1, S2)')
 
+    xline(DAT(PP).opt_force, '--k', 'LineWidth', 1.5, ...
+        'DisplayName', sprintf('Opt. force (min CoT): %.2f N/kg', DAT(PP).opt_force));
     offset_x = 0.01 * (x_lim(2) - x_lim(1));
     offset_y = 0.01 * (y_lim(2) - y_lim(1));
     for j = 1:numel(x_self)
@@ -785,7 +801,7 @@ end
 
 %shared legend plot 2
 subplot(1, 2, 2);
-legend({'Forced trials', 'Self-selected (S1, S2)', ...
+legend({'Forced trials', 'Self-selected (S1, S2)', 'Optimal force (min CoT)' ...
     'Quadratic fit (forced trials)', 'Top/bottom fit'}, ...
     'Location', 'best');
 
@@ -822,3 +838,40 @@ fprintf('3. |DeltaF_S1| vs |DeltaF_S2| (paired)\n');
 fprintf('   median |S1| = %.3f, median |S2| = %.3f\n', ...
     median(abs(ds1)), median(abs(ds2)));
 fprintf('   p = %.3f, signed rank = %d\n', p3, stats3.signedrank);
+
+%% Maximum CoT reduction relative to baseline walking
+
+fprintf('\n===== MAX CoT REDUCTION RELATIVE TO BASELINE WALKING =====\n');
+fprintf('%-6s %-20s %-20s %-20s %-20s\n', ...
+    'PP', 'Gross CoT baseline', 'Gross CoT optimal', 'Abs reduction', 'Pct reduction');
+
+for PP = 1:nparticipants
+
+    % Gross CoT at baseline-walk
+    condtype   = lower(string(DAT(PP).config.Condition_type));
+    isBaseWalk = condtype == "baseline-walk";
+    pow_base_walk = DAT(PP).pow_W(isBaseWalk);
+
+    if isempty(pow_base_walk) || all(isnan(pow_base_walk))
+        fprintf('PP%-4d: geen baseline-walk trial gevonden\n', PP);
+        continue
+    end
+
+    gross_CoT_base = mean(pow_base_walk, 'omitnan') / (DAT(PP).mass * speed);
+
+    % Gross CoT at optimal force: zelfde index als waarmee opt_force bepaald is
+    isForce_opt  = ~isnan(DAT(PP).config.Force_level_pct);
+    cot_vals     = DAT(PP).CoT(isForce_opt);
+    pow_vals     = DAT(PP).pow_W(isForce_opt);
+    [~, idx_opt] = min(cot_vals);
+    gross_CoT_opt = pow_vals(idx_opt) / (DAT(PP).mass * speed);
+
+    % Reduction
+    abs_reduction = gross_CoT_base - gross_CoT_opt;
+    pct_reduction = (abs_reduction / gross_CoT_base) * 100;
+
+    fprintf('PP%-4d %-20.4f %-20.4f %-20.4f %-20.1f%%\n', ...
+        PP, gross_CoT_base, gross_CoT_opt, abs_reduction, pct_reduction);
+end
+
+fprintf('\n');
